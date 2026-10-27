@@ -18,7 +18,7 @@ if ! sql_stop; then
 fi
 
 # Instances first, so their NICs no longer hold the reserved address.
-for vm in "$SERVER_VM" "$REPORTER_VM"; do
+for vm in "$SERVER_VM" "$REPORTER_VM" "hw5-client"; do
     if gcloud compute instances describe "$vm" --project="$PROJECT_ID" \
         --zone="$ZONE" >/dev/null 2>&1; then
         try gcloud compute instances delete "$vm" --project="$PROJECT_ID" \
