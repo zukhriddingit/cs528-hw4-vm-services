@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 metrics_*.csv
 *.log
+hw5/.db_password
+
+hw5/evidence/
+hw5/.venv/
+hw5/.db_password
