@@ -1,0 +1,12 @@
+# Local experiments, generated outputs and secrets (never commit)
+__pycache__/
+*.pyc
+.venv/
+.db_password
+.env
+.env.*
+step1_profile_output.txt
+step2_3nf_output.txt
+step3_last_run_prefix.txt
+*.log
+*.zip
