@@ -2,9 +2,9 @@
 # Remove ONLY HW8 resources. Preserve HW2/HW3/HW4 assets and the shared service account.
 set -euo pipefail
 
-PROJECT_ID=\${PROJECT_ID:-quick-formula-457319-q3}
-REGION=\${REGION:-us-central1}
-if [[ "\${1:-}" != "--yes" ]]; then
+PROJECT_ID=${PROJECT_ID:-quick-formula-457319-q3}
+REGION=${REGION:-us-central1}
+if [[ "${1:-}" != "--yes" ]]; then
   echo "This permanently deletes HW8 VMs and their disks, groups, firewall, health check, LB and IP."
   echo "It keeps HW2 pages, Pub/Sub, IAM service account, GitHub, and local experiment CSVs."
   echo "Run: bash scripts/cleanup.sh --yes"
