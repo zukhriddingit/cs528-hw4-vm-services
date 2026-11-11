@@ -1,0 +1,34 @@
+[
+  {
+    "backend": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/instanceGroups/hw8-ig-a",
+    "status": {
+      "healthStatus": [
+        {
+          "forwardingRule": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/forwardingRules/hw8-forward",
+          "forwardingRuleIp": "34.63.229.117",
+          "healthState": "HEALTHY",
+          "instance": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/instances/hw8-server-a",
+          "ipAddress": "10.128.0.19",
+          "port": 80
+        }
+      ],
+      "kind": "compute#backendServiceGroupHealth"
+    }
+  },
+  {
+    "backend": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/instanceGroups/hw8-ig-b",
+    "status": {
+      "healthStatus": [
+        {
+          "forwardingRule": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/forwardingRules/hw8-forward",
+          "forwardingRuleIp": "34.63.229.117",
+          "healthState": "HEALTHY",
+          "instance": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/instances/hw8-server-b",
+          "ipAddress": "10.128.0.20",
+          "port": 80
+        }
+      ],
+      "kind": "compute#backendServiceGroupHealth"
+    }
+  }
+]

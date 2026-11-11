@@ -1,0 +1,18 @@
+{
+  "IPAddress": "34.63.229.117",
+  "IPProtocol": "TCP",
+  "backendService": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/backendServices/hw8-backend",
+  "creationTimestamp": "2026-11-10T17:54:11.267-08:00",
+  "description": "",
+  "fingerprint": "W-sEGoSyYfo=",
+  "id": "4385815306264540204",
+  "kind": "compute#forwardingRule",
+  "labelFingerprint": "42WmSpB8rSM=",
+  "loadBalancingScheme": "EXTERNAL",
+  "name": "hw8-forward",
+  "networkTier": "PREMIUM",
+  "portRange": "8080-8080",
+  "region": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1",
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/forwardingRules/hw8-forward",
+  "selfLinkWithId": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/forwardingRules/4385815306264540204"
+}

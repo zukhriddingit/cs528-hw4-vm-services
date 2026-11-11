@@ -1,0 +1,29 @@
+{
+  "allowed": [
+    {
+      "IPProtocol": "tcp",
+      "ports": [
+        "8080"
+      ]
+    }
+  ],
+  "creationTimestamp": "2026-11-10T17:43:04.724-08:00",
+  "description": "",
+  "direction": "INGRESS",
+  "disabled": false,
+  "id": "4329880074562991815",
+  "kind": "compute#firewall",
+  "logConfig": {
+    "enable": false
+  },
+  "name": "hw8-allow-web",
+  "network": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/networks/default",
+  "priority": 1000,
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/firewalls/hw8-allow-web",
+  "sourceRanges": [
+    "0.0.0.0/0"
+  ],
+  "targetTags": [
+    "hw8-web"
+  ]
+}

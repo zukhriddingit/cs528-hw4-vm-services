@@ -1,0 +1,280 @@
+[
+  {
+    "canIpForward": false,
+    "cpuPlatform": "Intel Broadwell",
+    "creationTimestamp": "2026-11-10T17:43:28.226-08:00",
+    "deletionProtection": false,
+    "disks": [
+      {
+        "architecture": "X86_64",
+        "autoDelete": true,
+        "boot": true,
+        "deviceName": "persistent-disk-0",
+        "diskSizeGb": "10",
+        "guestOsFeatures": [
+          {
+            "type": "UEFI_COMPATIBLE"
+          },
+          {
+            "type": "VIRTIO_SCSI_MULTIQUEUE"
+          },
+          {
+            "type": "GVNIC"
+          },
+          {
+            "type": "SEV_CAPABLE"
+          },
+          {
+            "type": "SEV_LIVE_MIGRATABLE_V2"
+          },
+          {
+            "type": "SUSPEND_SAFE_FPR"
+          }
+        ],
+        "index": 0,
+        "interface": "SCSI",
+        "kind": "compute#attachedDisk",
+        "licenses": [
+          "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/licenses/debian-12-bookworm"
+        ],
+        "mode": "READ_WRITE",
+        "source": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/disks/hw8-server-a",
+        "type": "PERSISTENT"
+      }
+    ],
+    "fingerprint": "qqS0HPiy6fo=",
+    "id": "6437131621440059055",
+    "kind": "compute#instance",
+    "labelFingerprint": "42WmSpB8rSM=",
+    "lastStartTimestamp": "2026-11-10T17:43:41.069-08:00",
+    "machineType": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/machineTypes/e2-micro",
+    "metadata": {
+      "fingerprint": "7SeGCM79iqQ=",
+      "items": [
+        {
+          "key": "bucket-name",
+          "value": "cloud_hw2_bucket"
+        },
+        {
+          "key": "project-id",
+          "value": "quick-formula-457319-q3"
+        },
+        {
+          "key": "server-code",
+          "value": "\"\"\"HW4 file-serving VM app (adapted from HW3 service1).\"\"\"\n\nimport json\nimport os\nimport re\n\nfrom flask import Flask, Response, request\nfrom functools import lru_cache\nfrom urllib.request import Request, urlopen\nfrom google.api_core.exceptions import NotFound\nfrom google.cloud import logging as cloud_logging\nfrom google.cloud import pubsub_v1, storage\n\napp = Flask(__name__)\nPROJECT_ID = os.environ.get(\"PROJECT_ID\", \"quick-formula-457319-q3\")\nBUCKET_NAME = os.environ.get(\"BUCKET_NAME\", \"cloud_hw2_bucket\")\nTOPIC_ID = os.environ.get(\"TOPIC_ID\", \"hw3-forbidden-requests\")\n\nFORBIDDEN_COUNTRIES = {\n    \"north korea\", \"iran\", \"cuba\", \"myanmar\", \"iraq\",\n    \"libya\", \"sudan\", \"zimbabwe\", \"syria\",\n}\n\nSUPPORTED_METHODS = [\n    \"GET\", \"POST\", \"PUT\", \"DELETE\", \"HEAD\", \"CONNECT\", \"OPTIONS\", \"TRACE\", \"PATCH\"\n]\n\n_storage_client = None\n_publisher = None\n_log_writer = None\n\n\ndef storage_client():\n    global _storage_client\n    if _storage_client is None:\n        _storage_client = storage.Client(project=PROJECT_ID)\n    return _storage_client\n\n\ndef publisher():\n    global _publisher\n    if _publisher is None:\n        _publisher = pubsub_v1.PublisherClient()\n    return _publisher\n\n\ndef log_writer():\n    global _log_writer\n    if _log_writer is None:\n        _log_writer = cloud_logging.Client(project=PROJECT_ID).logger(\"hw4-web\")\n    return _log_writer\n\n\ndef log_event(severity, kind, message, **details):\n    payload = {\n        \"event_type\": kind,\n        \"message\": message,\n        \"http_method\": request.method,\n        \"request_path\": request.path,\n        \"status_category\": kind,\n        **details,\n    }\n    try:\n        log_writer().log_struct(payload, severity=severity)\n    except Exception:\n        app.logger.exception(\"Could not send structured log to Cloud Logging\")\n\n\ndef get_file(filename):\n    # HW2 pages are numbered, so avoid fetching arbitrary object names.\n    if not isinstance(filename, str) or not re.fullmatch(r\"\\d+\\.html\", filename):\n        return None\n    try:\n        return storage_client().bucket(BUCKET_NAME).blob(f\"pages/{filename}\").download_as_bytes()\n    except NotFound:\n        return None\n\n\ndef send_forbidden_message(country):\n    payload = {\n        \"country\": country,\n        \"method\": request.method,\n        \"path\": request.path,\n        \"message\": f\"Permission denied for requests from {country}\",\n    }\n    data = json.dumps(payload).encode(\"utf-8\")\n    topic_path = publisher().topic_path(PROJECT_ID, TOPIC_ID)\n    publisher().publish(topic_path, data=data).result(timeout=10)\n\n\n@app.route(\"/\", defaults={\"filename\": \"\"}, methods=SUPPORTED_METHODS, provide_automatic_options=False)\n@app.route(\"/<path:filename>\", methods=SUPPORTED_METHODS, provide_automatic_options=False)\ndef handle_request(filename):\n    country = request.headers.get(\"X-country\", \"\").strip()\n    if country.lower() in FORBIDDEN_COUNTRIES:\n        message = f\"Permission denied for requests from {country}\"\n        log_event(\"CRITICAL\", \"FORBIDDEN_COUNTRY\", message, country=country)\n        try:\n            send_forbidden_message(country)\n        except Exception:\n            app.logger.exception(\"Unable to publish forbidden-country event\")\n        return Response(message, status=400, mimetype=\"text/plain\")\n\n    if request.method not in (\"GET\", \"POST\"):\n        message = f\"HTTP method {request.method} is not implemented\"\n        log_event(\"ERROR\", \"501_NOT_IMPLEMENTED\", message)\n        return Response(message, status=501, mimetype=\"text/plain\")\n\n    if request.method == \"POST\":\n        payload = request.get_json(silent=True)\n        if not isinstance(payload, dict) or not isinstance(payload.get(\"file\"), str):\n            return Response(\"POST body must contain a 'file' string\", status=400, mimetype=\"text/plain\")\n        filename = payload[\"file\"]\n\n    try:\n        contents = get_file(filename)\n    except Exception:\n        app.logger.exception(\"Storage lookup failed\")\n        return Response(\"Storage temporarily unavailable\", status=503, mimetype=\"text/plain\")\n\n    if contents is None:\n        message = f\"File {filename} does not exist\"\n        log_event(\"WARNING\", \"404_NOT_FOUND\", message, filename=filename)\n        return Response(message, status=404, mimetype=\"text/plain\")\n\n    return Response(contents, status=200, mimetype=\"text/html\")\n\n\n\n@lru_cache(maxsize=1)\ndef server_zone():\n    override = os.environ.get(\"SERVER_ZONE\")\n    if override:\n        return override\n\n    req = Request(\n        \"http://metadata.google.internal/computeMetadata/v1/instance/zone\",\n        headers={\"Metadata-Flavor\": \"Google\"},\n    )\n    try:\n        with urlopen(req, timeout=1) as response:\n            return response.read().decode().split(\"/\")[-1]\n    except Exception:\n        return \"unknown\"\n\n\n@app.after_request\ndef add_zone_header(response):\n    response.headers[\"X-Server-Zone\"] = server_zone()\n    return response\n\n\n@app.get(\"/health\")\ndef health():\n    return Response(\"ok\", status=200, mimetype=\"text/plain\")\n\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", port=int(os.environ.get(\"PORT\", \"8080\")), threaded=True)\n"
+        },
+        {
+          "key": "server-requirements",
+          "value": "Flask>=3.0,<4\ngunicorn>=22,<24\ngoogle-cloud-storage>=2.15,<4\ngoogle-cloud-pubsub>=2.20,<4\ngoogle-cloud-logging>=3.8,<5\npsutil>=5.9,<8\n"
+        },
+        {
+          "key": "startup-script",
+          "value": "#!/bin/bash\nset -euo pipefail\nexport DEBIAN_FRONTEND=noninteractive\n\nMETADATA=\"http://metadata.google.internal/computeMetadata/v1/instance/attributes\"\nget_meta() { curl -fsS --retry 10 --retry-delay 2 -H 'Metadata-Flavor: Google' \"$METADATA/$1\"; }\n\nmkdir -p /opt/hw8/server\nget_meta server-code > /opt/hw8/server/app.py\nget_meta server-requirements > /opt/hw8/server/requirements.txt\nPROJECT_ID=$(get_meta project-id)\nBUCKET_NAME=$(get_meta bucket-name)\nTOPIC_ID=$(get_meta topic-id)\n\napt-get update -y\napt-get install -y --no-install-recommends python3-venv python3-pip ca-certificates\npython3 -m venv /opt/hw8/server/.venv\n/opt/hw8/server/.venv/bin/pip install --no-cache-dir -r /opt/hw8/server/requirements.txt\n\ncat > /etc/hw8-server.env <<EOF\nPROJECT_ID=$PROJECT_ID\nBUCKET_NAME=$BUCKET_NAME\nTOPIC_ID=$TOPIC_ID\nEOF\n\ncat > /etc/systemd/system/hw8-server.service <<'EOF'\n[Unit]\nDescription=CS528 HW8 Python GCS Web Server\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\nUser=www-data\nGroup=www-data\nWorkingDirectory=/opt/hw8/server\nEnvironmentFile=/etc/hw8-server.env\nExecStart=/opt/hw8/server/.venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 1 --threads 4 --timeout 60 app:app\nRestart=always\nRestartSec=3\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\nsystemctl daemon-reload\nsystemctl enable --now hw8-server\nsystemctl restart hw8-server\n"
+        },
+        {
+          "key": "topic-id",
+          "value": "hw3-forbidden-requests"
+        }
+      ],
+      "kind": "compute#metadata"
+    },
+    "name": "hw8-server-a",
+    "networkInterfaces": [
+      {
+        "accessConfigs": [
+          {
+            "kind": "compute#accessConfig",
+            "name": "external-nat",
+            "natIP": "34.171.16.191",
+            "networkTier": "PREMIUM",
+            "type": "ONE_TO_ONE_NAT"
+          }
+        ],
+        "fingerprint": "bdbiYp9Al1c=",
+        "kind": "compute#networkInterface",
+        "name": "nic0",
+        "network": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/networks/default",
+        "networkIP": "10.128.0.19",
+        "stackType": "IPV4_ONLY",
+        "subnetwork": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/subnetworks/default"
+      }
+    ],
+    "resourceStatus": {
+      "effectiveInstanceMetadata": {
+        "vmDnsSettingMetadataValue": "ZonalOnly"
+      }
+    },
+    "satisfiesPzi": true,
+    "scheduling": {
+      "automaticRestart": true,
+      "onHostMaintenance": "MIGRATE",
+      "preemptible": false,
+      "provisioningModel": "STANDARD"
+    },
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/instances/hw8-server-a",
+    "serviceAccounts": [
+      {
+        "email": "hw4-web-sa@quick-formula-457319-q3.iam.gserviceaccount.com",
+        "scopes": [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ]
+      }
+    ],
+    "shieldedInstanceConfig": {
+      "enableIntegrityMonitoring": true,
+      "enableSecureBoot": false,
+      "enableVtpm": true
+    },
+    "shieldedInstanceIntegrityPolicy": {
+      "updateAutoLearnPolicy": true
+    },
+    "startRestricted": false,
+    "status": "RUNNING",
+    "tags": {
+      "fingerprint": "IVcWfLLzcH4=",
+      "items": [
+        "hw8-web"
+      ]
+    },
+    "zone": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a"
+  },
+  {
+    "canIpForward": false,
+    "cpuPlatform": "Intel Broadwell",
+    "creationTimestamp": "2026-11-10T17:43:43.247-08:00",
+    "deletionProtection": false,
+    "disks": [
+      {
+        "architecture": "X86_64",
+        "autoDelete": true,
+        "boot": true,
+        "deviceName": "persistent-disk-0",
+        "diskSizeGb": "10",
+        "guestOsFeatures": [
+          {
+            "type": "UEFI_COMPATIBLE"
+          },
+          {
+            "type": "VIRTIO_SCSI_MULTIQUEUE"
+          },
+          {
+            "type": "GVNIC"
+          },
+          {
+            "type": "SEV_CAPABLE"
+          },
+          {
+            "type": "SEV_LIVE_MIGRATABLE_V2"
+          },
+          {
+            "type": "SUSPEND_SAFE_FPR"
+          }
+        ],
+        "index": 0,
+        "interface": "SCSI",
+        "kind": "compute#attachedDisk",
+        "licenses": [
+          "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/licenses/debian-12-bookworm"
+        ],
+        "mode": "READ_WRITE",
+        "source": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/disks/hw8-server-b",
+        "type": "PERSISTENT"
+      }
+    ],
+    "fingerprint": "iNa5mzwL-po=",
+    "id": "4941494300960519840",
+    "kind": "compute#instance",
+    "labelFingerprint": "42WmSpB8rSM=",
+    "lastStartTimestamp": "2026-11-10T17:43:54.116-08:00",
+    "machineType": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/machineTypes/e2-micro",
+    "metadata": {
+      "fingerprint": "7SeGCM79iqQ=",
+      "items": [
+        {
+          "key": "bucket-name",
+          "value": "cloud_hw2_bucket"
+        },
+        {
+          "key": "project-id",
+          "value": "quick-formula-457319-q3"
+        },
+        {
+          "key": "server-code",
+          "value": "\"\"\"HW4 file-serving VM app (adapted from HW3 service1).\"\"\"\n\nimport json\nimport os\nimport re\n\nfrom flask import Flask, Response, request\nfrom functools import lru_cache\nfrom urllib.request import Request, urlopen\nfrom google.api_core.exceptions import NotFound\nfrom google.cloud import logging as cloud_logging\nfrom google.cloud import pubsub_v1, storage\n\napp = Flask(__name__)\nPROJECT_ID = os.environ.get(\"PROJECT_ID\", \"quick-formula-457319-q3\")\nBUCKET_NAME = os.environ.get(\"BUCKET_NAME\", \"cloud_hw2_bucket\")\nTOPIC_ID = os.environ.get(\"TOPIC_ID\", \"hw3-forbidden-requests\")\n\nFORBIDDEN_COUNTRIES = {\n    \"north korea\", \"iran\", \"cuba\", \"myanmar\", \"iraq\",\n    \"libya\", \"sudan\", \"zimbabwe\", \"syria\",\n}\n\nSUPPORTED_METHODS = [\n    \"GET\", \"POST\", \"PUT\", \"DELETE\", \"HEAD\", \"CONNECT\", \"OPTIONS\", \"TRACE\", \"PATCH\"\n]\n\n_storage_client = None\n_publisher = None\n_log_writer = None\n\n\ndef storage_client():\n    global _storage_client\n    if _storage_client is None:\n        _storage_client = storage.Client(project=PROJECT_ID)\n    return _storage_client\n\n\ndef publisher():\n    global _publisher\n    if _publisher is None:\n        _publisher = pubsub_v1.PublisherClient()\n    return _publisher\n\n\ndef log_writer():\n    global _log_writer\n    if _log_writer is None:\n        _log_writer = cloud_logging.Client(project=PROJECT_ID).logger(\"hw4-web\")\n    return _log_writer\n\n\ndef log_event(severity, kind, message, **details):\n    payload = {\n        \"event_type\": kind,\n        \"message\": message,\n        \"http_method\": request.method,\n        \"request_path\": request.path,\n        \"status_category\": kind,\n        **details,\n    }\n    try:\n        log_writer().log_struct(payload, severity=severity)\n    except Exception:\n        app.logger.exception(\"Could not send structured log to Cloud Logging\")\n\n\ndef get_file(filename):\n    # HW2 pages are numbered, so avoid fetching arbitrary object names.\n    if not isinstance(filename, str) or not re.fullmatch(r\"\\d+\\.html\", filename):\n        return None\n    try:\n        return storage_client().bucket(BUCKET_NAME).blob(f\"pages/{filename}\").download_as_bytes()\n    except NotFound:\n        return None\n\n\ndef send_forbidden_message(country):\n    payload = {\n        \"country\": country,\n        \"method\": request.method,\n        \"path\": request.path,\n        \"message\": f\"Permission denied for requests from {country}\",\n    }\n    data = json.dumps(payload).encode(\"utf-8\")\n    topic_path = publisher().topic_path(PROJECT_ID, TOPIC_ID)\n    publisher().publish(topic_path, data=data).result(timeout=10)\n\n\n@app.route(\"/\", defaults={\"filename\": \"\"}, methods=SUPPORTED_METHODS, provide_automatic_options=False)\n@app.route(\"/<path:filename>\", methods=SUPPORTED_METHODS, provide_automatic_options=False)\ndef handle_request(filename):\n    country = request.headers.get(\"X-country\", \"\").strip()\n    if country.lower() in FORBIDDEN_COUNTRIES:\n        message = f\"Permission denied for requests from {country}\"\n        log_event(\"CRITICAL\", \"FORBIDDEN_COUNTRY\", message, country=country)\n        try:\n            send_forbidden_message(country)\n        except Exception:\n            app.logger.exception(\"Unable to publish forbidden-country event\")\n        return Response(message, status=400, mimetype=\"text/plain\")\n\n    if request.method not in (\"GET\", \"POST\"):\n        message = f\"HTTP method {request.method} is not implemented\"\n        log_event(\"ERROR\", \"501_NOT_IMPLEMENTED\", message)\n        return Response(message, status=501, mimetype=\"text/plain\")\n\n    if request.method == \"POST\":\n        payload = request.get_json(silent=True)\n        if not isinstance(payload, dict) or not isinstance(payload.get(\"file\"), str):\n            return Response(\"POST body must contain a 'file' string\", status=400, mimetype=\"text/plain\")\n        filename = payload[\"file\"]\n\n    try:\n        contents = get_file(filename)\n    except Exception:\n        app.logger.exception(\"Storage lookup failed\")\n        return Response(\"Storage temporarily unavailable\", status=503, mimetype=\"text/plain\")\n\n    if contents is None:\n        message = f\"File {filename} does not exist\"\n        log_event(\"WARNING\", \"404_NOT_FOUND\", message, filename=filename)\n        return Response(message, status=404, mimetype=\"text/plain\")\n\n    return Response(contents, status=200, mimetype=\"text/html\")\n\n\n\n@lru_cache(maxsize=1)\ndef server_zone():\n    override = os.environ.get(\"SERVER_ZONE\")\n    if override:\n        return override\n\n    req = Request(\n        \"http://metadata.google.internal/computeMetadata/v1/instance/zone\",\n        headers={\"Metadata-Flavor\": \"Google\"},\n    )\n    try:\n        with urlopen(req, timeout=1) as response:\n            return response.read().decode().split(\"/\")[-1]\n    except Exception:\n        return \"unknown\"\n\n\n@app.after_request\ndef add_zone_header(response):\n    response.headers[\"X-Server-Zone\"] = server_zone()\n    return response\n\n\n@app.get(\"/health\")\ndef health():\n    return Response(\"ok\", status=200, mimetype=\"text/plain\")\n\n\nif __name__ == \"__main__\":\n    app.run(host=\"0.0.0.0\", port=int(os.environ.get(\"PORT\", \"8080\")), threaded=True)\n"
+        },
+        {
+          "key": "server-requirements",
+          "value": "Flask>=3.0,<4\ngunicorn>=22,<24\ngoogle-cloud-storage>=2.15,<4\ngoogle-cloud-pubsub>=2.20,<4\ngoogle-cloud-logging>=3.8,<5\npsutil>=5.9,<8\n"
+        },
+        {
+          "key": "startup-script",
+          "value": "#!/bin/bash\nset -euo pipefail\nexport DEBIAN_FRONTEND=noninteractive\n\nMETADATA=\"http://metadata.google.internal/computeMetadata/v1/instance/attributes\"\nget_meta() { curl -fsS --retry 10 --retry-delay 2 -H 'Metadata-Flavor: Google' \"$METADATA/$1\"; }\n\nmkdir -p /opt/hw8/server\nget_meta server-code > /opt/hw8/server/app.py\nget_meta server-requirements > /opt/hw8/server/requirements.txt\nPROJECT_ID=$(get_meta project-id)\nBUCKET_NAME=$(get_meta bucket-name)\nTOPIC_ID=$(get_meta topic-id)\n\napt-get update -y\napt-get install -y --no-install-recommends python3-venv python3-pip ca-certificates\npython3 -m venv /opt/hw8/server/.venv\n/opt/hw8/server/.venv/bin/pip install --no-cache-dir -r /opt/hw8/server/requirements.txt\n\ncat > /etc/hw8-server.env <<EOF\nPROJECT_ID=$PROJECT_ID\nBUCKET_NAME=$BUCKET_NAME\nTOPIC_ID=$TOPIC_ID\nEOF\n\ncat > /etc/systemd/system/hw8-server.service <<'EOF'\n[Unit]\nDescription=CS528 HW8 Python GCS Web Server\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\nUser=www-data\nGroup=www-data\nWorkingDirectory=/opt/hw8/server\nEnvironmentFile=/etc/hw8-server.env\nExecStart=/opt/hw8/server/.venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 1 --threads 4 --timeout 60 app:app\nRestart=always\nRestartSec=3\nStandardOutput=journal\nStandardError=journal\n\n[Install]\nWantedBy=multi-user.target\nEOF\n\nsystemctl daemon-reload\nsystemctl enable --now hw8-server\nsystemctl restart hw8-server\n"
+        },
+        {
+          "key": "topic-id",
+          "value": "hw3-forbidden-requests"
+        }
+      ],
+      "kind": "compute#metadata"
+    },
+    "name": "hw8-server-b",
+    "networkInterfaces": [
+      {
+        "accessConfigs": [
+          {
+            "kind": "compute#accessConfig",
+            "name": "external-nat",
+            "natIP": "34.10.167.92",
+            "networkTier": "PREMIUM",
+            "type": "ONE_TO_ONE_NAT"
+          }
+        ],
+        "fingerprint": "fmlA0WKXosY=",
+        "kind": "compute#networkInterface",
+        "name": "nic0",
+        "network": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/networks/default",
+        "networkIP": "10.128.0.20",
+        "stackType": "IPV4_ONLY",
+        "subnetwork": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/subnetworks/default"
+      }
+    ],
+    "resourceStatus": {
+      "effectiveInstanceMetadata": {
+        "vmDnsSettingMetadataValue": "ZonalOnly"
+      }
+    },
+    "satisfiesPzi": true,
+    "scheduling": {
+      "automaticRestart": true,
+      "onHostMaintenance": "MIGRATE",
+      "preemptible": false,
+      "provisioningModel": "STANDARD"
+    },
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/instances/hw8-server-b",
+    "serviceAccounts": [
+      {
+        "email": "hw4-web-sa@quick-formula-457319-q3.iam.gserviceaccount.com",
+        "scopes": [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ]
+      }
+    ],
+    "shieldedInstanceConfig": {
+      "enableIntegrityMonitoring": true,
+      "enableSecureBoot": false,
+      "enableVtpm": true
+    },
+    "shieldedInstanceIntegrityPolicy": {
+      "updateAutoLearnPolicy": true
+    },
+    "startRestricted": false,
+    "status": "RUNNING",
+    "tags": {
+      "fingerprint": "IVcWfLLzcH4=",
+      "items": [
+        "hw8-web"
+      ]
+    },
+    "zone": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b"
+  }
+]

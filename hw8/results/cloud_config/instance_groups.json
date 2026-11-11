@@ -1,0 +1,30 @@
+[
+  {
+    "creationTimestamp": "2026-11-10T17:51:02.494-08:00",
+    "description": "",
+    "fingerprint": "42WmSpB8rSM=",
+    "id": "1814180483615847657",
+    "isManaged": "No",
+    "kind": "compute#instanceGroup",
+    "name": "hw8-ig-a",
+    "network": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/networks/default",
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a/instanceGroups/hw8-ig-a",
+    "size": 1,
+    "subnetwork": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/subnetworks/default",
+    "zone": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-a"
+  },
+  {
+    "creationTimestamp": "2026-11-10T17:51:05.793-08:00",
+    "description": "",
+    "fingerprint": "42WmSpB8rSM=",
+    "id": "7350506427533653222",
+    "isManaged": "No",
+    "kind": "compute#instanceGroup",
+    "name": "hw8-ig-b",
+    "network": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/global/networks/default",
+    "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b/instanceGroups/hw8-ig-b",
+    "size": 1,
+    "subnetwork": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/subnetworks/default",
+    "zone": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/zones/us-central1-b"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "address": "34.63.229.117",
+  "addressType": "EXTERNAL",
+  "creationTimestamp": "2026-11-10T17:54:06.303-08:00",
+  "description": "",
+  "id": "3448730077378802769",
+  "kind": "compute#address",
+  "labelFingerprint": "42WmSpB8rSM=",
+  "name": "hw8-lb-ip",
+  "networkTier": "PREMIUM",
+  "region": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1",
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/addresses/hw8-lb-ip",
+  "status": "IN_USE",
+  "users": [
+    "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/forwardingRules/hw8-forward"
+  ]
+}

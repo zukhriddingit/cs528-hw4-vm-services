@@ -1,0 +1,19 @@
+{
+  "checkIntervalSec": 5,
+  "creationTimestamp": "2026-11-10T17:51:11.190-08:00",
+  "healthyThreshold": 2,
+  "httpHealthCheck": {
+    "port": 8080,
+    "portSpecification": "USE_FIXED_PORT",
+    "proxyHeader": "NONE",
+    "requestPath": "/health"
+  },
+  "id": "6274919227885253856",
+  "kind": "compute#healthCheck",
+  "name": "hw8-health",
+  "region": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1",
+  "selfLink": "https://www.googleapis.com/compute/v1/projects/quick-formula-457319-q3/regions/us-central1/healthChecks/hw8-health",
+  "timeoutSec": 2,
+  "type": "HTTP",
+  "unhealthyThreshold": 2
+}
