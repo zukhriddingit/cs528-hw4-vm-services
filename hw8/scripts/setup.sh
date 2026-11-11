@@ -2,18 +2,18 @@
 # CS528 HW8 - deploy two zonal web VMs behind a regional external passthrough NLB.
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)
-PROJECT_ID=\${PROJECT_ID:-quick-formula-457319-q3}
-REGION=\${REGION:-us-central1}
-BUCKET_NAME=\${BUCKET_NAME:-cloud_hw2_bucket}
-TOPIC_ID=\${TOPIC_ID:-hw3-forbidden-requests}
-WEB_SA=\${WEB_SA:-hw4-web-sa@\${PROJECT_ID}.iam.gserviceaccount.com}
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+PROJECT_ID=${PROJECT_ID:-quick-formula-457319-q3}
+REGION=${REGION:-us-central1}
+BUCKET_NAME=${BUCKET_NAME:-cloud_hw2_bucket}
+TOPIC_ID=${TOPIC_ID:-hw3-forbidden-requests}
+WEB_SA=${WEB_SA:-hw4-web-sa@${PROJECT_ID}.iam.gserviceaccount.com}
 PORT=8080
 
 exists() { "$@" >/dev/null 2>&1; }
 echo "Project: $PROJECT_ID | region: $REGION | backend VMs: hw8-server-a/b"
 echo "WARNING: Running VMs, external IPv4 addresses and the forwarding rule incur GCP charges."
-gcloud storage ls "gs://\${BUCKET_NAME}/pages/0.html" >/dev/null
+gcloud storage ls "gs://${BUCKET_NAME}/pages/0.html" >/dev/null
 if ! exists gcloud iam service-accounts describe "$WEB_SA" --project="$PROJECT_ID"; then
   echo "Missing service account: $WEB_SA. Recreate/grant it as described in README." >&2
   exit 1
