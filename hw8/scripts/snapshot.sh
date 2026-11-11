@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Snapshot HW8 infrastructure before deleting live resources.
 set -euo pipefail
-ROOT=$(cd "$(dirname "\${BASH_SOURCE[0]}")/.." && pwd)
-PROJECT_ID=\${PROJECT_ID:-quick-formula-457319-q3}
-REGION=\${REGION:-us-central1}
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+PROJECT_ID=${PROJECT_ID:-quick-formula-457319-q3}
+REGION=${REGION:-us-central1}
 OUT="$ROOT/results/cloud_config"
 mkdir -p "$OUT"
 
